@@ -1,0 +1,145 @@
+---
+title: "Lab 02"
+author: Helena Littman and Katerina Alvarez & Remy Wang (kalva914 & helenalittman
+  & RLWang)
+date: "9/20/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## Lab Tasks
+
+* read in the data set `data/bad-drivers.csv`
+  * (recommended) rename the columns to shorter nicknames (check out the `names` function)
+
+bad_drivers <- read.csv("data/bad-drivers.csv")
+
+```{r}
+bad_drivers <- read.csv("data/bad-drivers.csv")
+```
+
+* exploratory data analysis
+  * present some pictures and a brief description of trends you see in the data, and how they may influence fitting a model.
+  
+```{r}
+library(ggplot2)
+library(GGally)
+library(dplyr)
+attach(bad_drivers)
+
+vars_to_use <- c("Number.of.drivers.involved.in.fatal.collisions.per.billion.miles","Percentage.Of.Drivers.Involved.In.Fatal.Collisions.Who.Were.Speeding", "Percentage.Of.Drivers.Involved.In.Fatal.Collisions.Who.Were.Alcohol.Impaired", "Percentage.Of.Drivers.Involved.In.Fatal.Collisions.Who.Were.Not.Distracted", "Percentage.Of.Drivers.Involved.In.Fatal.Collisions.Who.Had.Not.Been.Involved.In.Any.Previous.Accidents", "Losses.incurred.by.insurance.companies.for.collisions.per.insured.driver....", "Car.Insurance.Premiums....")
+
+ggpairs(bad_drivers %>% select(vars_to_use))
+```
+  
+#Only one plot shows a linear relationship (explanatory variable = Losses.incurred.by.insurance.companies.for.collisions.per.insured.driver....). The rest don't show relationships and are scatterred. 
+
+* regression analysis
+  * The target variable for our regression models is `Car Insurance Premiums ($)`
+  * fit a simple linear regression model and save this model as `reg01`. 
+  * fit a multiple linear regression model that includes the variable you used in your simple linear regression and save this as `reg02`.
+  
+```{r}
+#Simple linear regression model = 'reg01'
+reg01<-lm(Car.Insurance.Premiums....~Losses.incurred.by.insurance.companies.for.collisions.per.insured.driver...., data=bad_drivers)
+
+summary(reg01)
+
+#Multiple linear regression = 'reg02'
+reg02<-lm(Car.Insurance.Premiums....~Losses.incurred.by.insurance.companies.for.collisions.per.insured.driver.... + Percentage.Of.Drivers.Involved.In.Fatal.Collisions.Who.Had.Not.Been.Involved.In.Any.Previous.Accidents + Percentage.Of.Drivers.Involved.In.Fatal.Collisions.Who.Were.Speeding, data=bad_drivers)
+
+summary(reg02)
+```
+  
+
+* Cross-validation
+  * **For both reg01 and reg02**
+    * split your data into 5 cross-validation folds.
+    
+```{r}
+set.seed(13)
+
+train_val_inds <- caret::createDataPartition(
+  y=Car.Insurance.Premiums....,
+  p= 0.8
+)
+
+train_val_inds
+
+cars_train_val <- bad_drivers %>% slice (train_val_inds[[1]])
+cars_test <- bad_drivers %>% slice (-train_val_inds[[1]])
+
+num_crossval_folds <- 5
+crossval_fold_inds <- caret::createFolds (
+  y=bad_drivers_train_val$Car.Insurance.Premiums....,
+  k= num_crossval_folds
+)
+```
+
+    * write a for loop that trains your model on 4 of the folds and evaluates on the "held-out" fold.  (This for loop should iterate over all 5 folds.)
+    * compute the MSE for each validation fold
+    * compute the MSE averaged across all 5 folds.
+    
+```{r}
+train_val_mse <- expand.grid(
+  poly_degree = seq_len(7),
+  val_fold_num = seq_len(num_crossval_folds),
+  train_mse = NA,
+  val_mse = NA
+)
+
+for(poly_degree in seq_len(7)) {
+  for(val_fold_num in seq_len(num_crossval_folds)) {
+    results_index <- which (
+      train_val_mse$poly_degree == poly_degree &
+        train_val_mse$val_fold_num == val_fold_num
+    )
+    cars_train <- cars_train_val %>% slice(-crossval_fold_inds[[val_fold_num]])
+    cars_val <- cars_train_val %>% slice(crossval_fold_inds[[val_fold_num]])
+    
+    fit <- lm(Car.Insurance.Premiums.... ~ poly(Losses.incurred.by.insurance.companies.for.collisions.per.insured.driver...., poly_degree), data = bad_drivers)
+    
+    train_resids <- cars_train$Car.Insurance.Premiums.... - predict(fit)
+    train_val_mse$train_mse[results_index] <- mean(train_resids^2)
+    
+    val_resids<-cars_val$Car.Insurance.Premiums....-predict(fit, cars_val)
+    train_val_mse$val_mse[results_index] <-mean(val_resids^2)
+  }
+}
+
+head(train_val_mse)
+
+summarized_crossval_mse_results <- train_val_mse %>% 
+  group_by(poly_degree) %>% 
+  summarize(
+    crossval_mse = mean(val_mse)
+  )
+
+summarized_crossval_mse_results
+```
+  
