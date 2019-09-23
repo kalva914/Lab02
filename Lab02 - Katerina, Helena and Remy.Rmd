@@ -96,7 +96,7 @@ cars_test <- bad_drivers %>% slice (-train_val_inds[[1]])
 
 num_crossval_folds <- 5
 crossval_fold_inds <- caret::createFolds (
-  y=bad_drivers_train_val$Car.Insurance.Premiums....,
+  y=cars_train_val$Car.Insurance.Premiums....,
   k= num_crossval_folds
 )
 ```
